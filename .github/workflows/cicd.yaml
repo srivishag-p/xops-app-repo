@@ -2,42 +2,36 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout app repo
+      - name: Checkout app code
         uses: actions/checkout@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker image
-        run: |
-          IMAGE=${{ secrets.DOCKER_USERNAME }}/xops-app:${{ github.sha }}
-          docker build -t $IMAGE .
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/app:latest .
 
       - name: Push Docker image
-        run: docker push $IMAGE
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/app:latest
 
-      - name: Checkout infra repo (Task-6)
-        uses: actions/checkout@v3
-        with:
-          repository: xops/Task-6   # 👈 infra repo with /k8n manifests
-          token: ${{ secrets.TOKEN }}
-          path: k8n
-
-      - name: Update deployment.yaml with new image
+      - name: Update infra repo deployment
         run: |
-          sed -i "s|image:.*|image: $IMAGE|g" k8n/deployment.yaml
-          cd k8n
-          git config --global user.name "srivishag-p"
-          git config --global user.email "srivishagp@celcomsolutions.com"
-          git commit -am "Update image to $IMAGE" || echo "No changes to commit"
+          git clone https://x-access-token:${{ secrets.TOKEN }}@github.com/srivishag-p/xops.git infra
+          cd "Task 6/k8n"
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/app:latest|" deployment.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deployment.yaml
+          git commit -m "Update image to latest"
           git push
